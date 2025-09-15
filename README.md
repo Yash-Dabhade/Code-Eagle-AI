@@ -42,6 +42,7 @@ An automated code review bot that integrates with GitHub to provide AI-powered f
 3. **Pull Qwen Model**
 ``` bash
     ollama pull qwen2.5-coder:latest 
+    ollama serve
 ```
 
 4. **Start Services**
@@ -54,6 +55,7 @@ An automated code review bot that integrates with GitHub to provide AI-powered f
     # Terminal 2: Consumer
     cd consumer
     python run_consumer.py
+
 ```
 
 5. **Expose Webhook with Ngrok**

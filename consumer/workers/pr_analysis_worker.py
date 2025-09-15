@@ -13,7 +13,7 @@ def process_job(job_data: dict):
     try:
         # Extract job data
         job = PRJobData.from_dict(job_data)
-        logger.info(f"🔧 Processing job: {job.repo} PR #{job.pr_number}")
+        logger.info(f"Processing job: {job.repo} PR #{job.pr_number}")
 
         # Fetch changed files
         pr_files = github_service.get_pr_files(job.repo, job.pr_number)
@@ -37,17 +37,17 @@ def process_job(job_data: dict):
                 logger.error(f"Failed to fetch content for {file_path}: {e}")
                 diff += "[ERROR: Failed to load file content]\n\n"
 
+       
         # TEMP: Simulate automated scan findings (empty for now — you can populate later)
         issues = []  # ← You can populate this from linters, scanners, etc.
 
         # Analyze with LLM — pass diff + issues
         review = analyze_code(diff, issues)
-        logger.info(f"🧠 LLM analysis completed: {len(review.get('findings', []))} findings")
+        logger.info(f"LLM analysis completed: {len(review.get('findings', []))} findings")
 
-        # Post to GitHub
-        success = github_service.post_review_comments(job.repo, job.pr_number, review)
+        review_success = github_service.post_detailed_review(job.repo, job.pr_number, review)
 
-        if success:
+        if review_success:
             logger.info("Review comment posted successfully as top-level comment.")
         else:
             logger.error("Failed to post review comment.")

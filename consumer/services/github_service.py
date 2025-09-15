@@ -3,8 +3,7 @@ import jwt
 import time
 from config.env import env
 from utils.logger import setup_logger
-from typing import List, Dict, Any, Optional
-from services.comment_formatter import format_review_comment
+from typing import List, Dict, Any
 import base64
 
 logger = setup_logger(__name__)
@@ -159,23 +158,13 @@ class GitHubService:
             logger.error(f"Error fetching file content: {e}")
             return ""
 
-    def post_review_comments(self, repo: str, pr_number: int, review_data: dict) -> bool:
+    def post_detailed_review(self, repo: str, pr_number: int, review: dict) -> bool:
         """
-        Post a formatted review comment to GitHub PR using simple comment API.
-        Avoids inline comments (which require diff hunk mapping).
+        Post detailed technical review as a separate comment.
         """
-        # Use our formatter to generate beautiful Markdown
-        comment_body = format_review_comment(review_data)
-
-        # Post as simple comment
-        success = self.post_simple_comment(repo, pr_number, comment_body)
-        
-        if success:
-            logger.info("✅ Review comment posted successfully.")
-        else:
-            logger.error("❌ Failed to post review comment.")
-
-        return success
+        from services.comment_formatter import format_review_comment
+        comment_body = format_review_comment(review)
+        return self.post_simple_comment(repo, pr_number, comment_body)
 
 
     def post_simple_comment(self, repo: str, pr_number: int, comment: str) -> bool:

@@ -20,6 +20,8 @@ def analyze_code(diff: str, issues: list) -> dict:
         - Bugs that will cause runtime errors or incorrect behavior  
         - Performance issues that impact user experience
         - Code that violates established best practices
+        - Style and documentation improvements that enhance maintainability
+        - Quality scoring to reflect readiness for production
 
         ## INPUT DATA
 
@@ -56,7 +58,7 @@ def analyze_code(diff: str, issues: list) -> dict:
         Return ONLY valid JSON matching this exact structure:
 
         {{
-        "summary": "Brief 2-3 sentences executive summary. Be specific about the main issues found.",
+        "summary": "Brief 4-5 sentences executive summary. Be specific about the main issues found.",
         "findings": [
             {{
             "type": "security|bug|performance|best_practice|style|documentation",
@@ -117,6 +119,7 @@ def analyze_code(diff: str, issues: list) -> dict:
         - Focus on real issues, not hypothetical problems
         - If no issues found, return empty findings array with score A or A+
         - Review ALL provided code thoroughly
+        - For codes, make sure there is proper line breaks, spacing and indentation
 
         Now analyze the code and provide your review:
         """
@@ -127,7 +130,7 @@ def analyze_code(diff: str, issues: list) -> dict:
             prompt=prompt,
             format="json",
             options={
-                "temperature": 0.7,  # Lower temperature for more consistent output
+                "temperature": 0.6,  # Lower temperature for more consistent output
                 "top_p": 0.9,
                 "num_ctx": 16384,    # Increased context for larger diffs
                 "num_predict": 4096  # Allow longer responses

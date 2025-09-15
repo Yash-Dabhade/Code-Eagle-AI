@@ -5,10 +5,10 @@ import json
 def analyze_code(diff: str, issues: list) -> dict:
     """
     Analyze code changes and return structured, CodeAntAI-style feedback.
-    AST analysis is temporarily disabled — analysis based on diff + scan findings only.
+    Supports any programming language — LLM auto-detects and formats code blocks accordingly.
     """
 
-    # 💡 Enhanced Prompt — CodeAntAI Style (AST-Free)
+    # 💡 Enhanced Prompt — Multi-Language, CodeAntAI Style
     prompt = f"""
         You are CodeEagle AI, an elite senior software engineer and code reviewer with 15+ years of experience across security, performance, scalability, and maintainability. You are reviewing a Pull Request for a production codebase. Your feedback must be **actionable, precise, and educational** — like a senior engineer mentoring a teammate.
 
@@ -21,10 +21,10 @@ def analyze_code(diff: str, issues: list) -> dict:
 
         ## 📥 INPUT CONTEXT
 
-        ### 1. CODE DIFF 
+        ### 1. CODE DIFF (Full content of changed files)
         {diff}
 
-        ### 2. AUTOMATED SCAN FINDINGS (e.g., linters, scanners, static analyzers)
+        ### 2. AUTOMATED SCAN FINDINGS
         {issues}
 
         ---
@@ -32,76 +32,76 @@ def analyze_code(diff: str, issues: list) -> dict:
         ## 🧠 THINKING STEPS (Follow this internally)
 
         1. **Prioritize**: Security > Bugs > Performance > Best Practices > Style.
-        2. **Pinpoint**: Always reference exact file and line number if possible. If line is unknown, say "near top/middle/end of file".
-        3. **Explain**: Why is this an issue? What’s the risk?
-        4. **Fix**: Provide a concrete code example or pattern to fix it. Use ```diff or ```python blocks.
-        5. **Rate**: Assign severity accurately:
+        2. **Pinpoint**: Reference exact file and line number. If unknown, estimate (e.g., “around line 40”).
+        3. **Explain**: Clearly state the risk or impact (e.g., “This causes memory leak → app crashes under load”).
+        4. **Fix**: Provide a concrete, copy-paste ready fix. Use correct Markdown code fence for the language (e.g., ```js, ```go, ```java — NOT ```python unless it’s Python).
+        5. **Rate Severity**:
         - `critical` = exploitable security flaw, data loss, crash
-        - `high` = major bug, performance bottleneck, incorrect logic
-        - `medium` = code smell, maintainability issue, minor bug
-        - `low` = style, nitpick, optional improvement
-        6. **Score**: Assign letter grade A+ to F based on overall code quality and risk.
+        - `high` = major bug, performance bottleneck
+        - `medium` = code smell, maintainability issue
+        - `low` = style, nitpick
+        6. **Score**: Assign letter grade A+ to F based on overall risk and code quality.
 
         ---
 
         ## 🧾 OUTPUT FORMAT (STRICT JSON)
 
         {{
-        "summary": "1-2 sentence executive summary for the PR author. Start with emoji. Example: '🚨 Found 2 critical SQL injection risks — fix before merge.'",
+        "summary": "Start with emoji. 1-2 sentence summary. Example: '🚨 Found 2 critical SQLi risks in auth module — fix before merge.'",
         "findings": [
             {{
             "type": "security|performance|bug|best_practice|style|documentation",
             "severity": "critical|high|medium|low",
-            "file": "relative/path/to/file.py",
-            "line": line_number(like 42),
-            "description": "Clear, concise explanation of the issue. Mention impact.",
-            "suggestion": "Actionable fix with code example. Use Markdown code blocks if helpful."
+            "file": "relative/path/to/file.ext",
+            "line": 42,
+            "description": "Clear explanation of issue + impact.",
+            "suggestion": "Actionable fix suggestion.",
+            "vulnerable_code": "The problematic code snippet (without Markdown fence)",
+            "fixed_code": "The corrected code snippet (without Markdown fence)"
             }}
         ],
         "overall_score": "A+|A|A-|B+|B|B-|C+|C|C-|D|F"
         }}
 
-        ---
-
-        ## 🚫 RULES
-
-        - NEVER say “I think”, “maybe”, or “possibly” — be confident and authoritative.
-        - NEVER omit line numbers unless truly impossible.
-        - NEVER return invalid JSON.
-        - If no issues found, return empty `findings` array and high score (A or A+).
-        - Use professional but friendly tone — you’re helping, not scolding.
+        > ⚠️ IMPORTANT:
+        > - DO NOT wrap `vulnerable_code` or `fixed_code` in ``` fences — I will add them with correct language later.
+        > - DO NOT include explanations or notes outside the JSON.
+        > - If no issues, return empty `findings` array and score A or A+.
 
         ---
 
-        ## 💡 EXAMPLE (for inspiration)
+        ## 💡 EXAMPLE (Multi-Language)
 
         {{
-        "summary": "✅ Solid PR with minor improvements needed. Fix 1 security issue and 2 best practices.",
+        "summary": "✅ Good structure, but fix 1 critical JS XSS risk and 1 Go concurrency bug.",
         "findings": [
             {{
             "type": "security",
             "severity": "critical",
-            "file": "src/auth/login.py",
-            "line": 28,
-            "description": "Raw user input concatenated into SQL query — allows SQL injection. Attacker could drop tables or steal data.",
-            "suggestion": "Use parameterized queries immediately:\\n```python\\n# ❌ Vulnerable\\nquery = f\\\"SELECT * FROM users WHERE email = '{{email}}'\\\"\\n\\n# ✅ Fixed\\ncursor.execute(\\\"SELECT * FROM users WHERE email = %s\\\", (email,))\\n```"
+            "file": "src/frontend/utils.js",
+            "line": 88,
+            "description": "innerHTML used with unsanitized user input → allows XSS attacks.",
+            "suggestion": "Use textContent or DOMPurify to sanitize.",
+            "vulnerable_code": "element.innerHTML = userInput;",
+            "fixed_code": "element.textContent = userInput;"
             }},
             {{
-            "type": "best_practice",
-            "severity": "medium",
-            "file": "src/utils/cache.py",
-            "line": 89,
-            "description": "Missing error handling around Redis call — could crash app if Redis is down.",
-            "suggestion": "Wrap in try-except:\\n```python\\ntry:\\n    cache.set(key, value)\\nexcept RedisError as e:\\n    logger.warning(\\\"Cache set failed\\\", exc_info=True)\\n    # fallback to db or default\\n```"
+            "type": "bug",
+            "severity": "high",
+            "file": "cmd/server/handler.go",
+            "line": 120,
+            "description": "Map accessed without mutex → race condition under load.",
+            "suggestion": "Wrap map access in sync.RWMutex.",
+            "vulnerable_code": "users[userID] = data",
+            "fixed_code": "mu.Lock()\\nusers[userID] = data\\nmu.Unlock()"
             }}
         ],
-        "overall_score": "B+"
+        "overall_score": "B"
         }}
 
         ---
 
-        ## ✍️ YOUR RESPONSE (STRICT JSON ONLY — no extra text, no apologies, no explanations outside JSON):
-        REMEMBER: Respond ONLY with valid JSON. No extra text before or after.
+        ## ✍️ YOUR RESPONSE (STRICT JSON ONLY — no extra text, no apologies, no explanations)
         """
 
     try:
@@ -134,7 +134,9 @@ def analyze_code(diff: str, issues: list) -> dict:
                         "file": "unknown",
                         "line": 0,
                         "description": "Model failed to format response correctly.",
-                        "suggestion": "Check prompt or model configuration."
+                        "suggestion": "Check prompt or model configuration.",
+                        "vulnerable_code": "# format error",
+                        "fixed_code": "# format error"
                     }
                 ],
                 "overall_score": "C"
@@ -150,7 +152,9 @@ def analyze_code(diff: str, issues: list) -> dict:
                     "file": "system",
                     "line": 0,
                     "description": f"Failed to analyze code: {str(e)}",
-                    "suggestion": "Check Ollama service, model availability, or system logs."
+                    "suggestion": "Check Ollama service, model availability, or system logs.",
+                    "vulnerable_code": "# system error",
+                    "fixed_code": "# system error"
                 }
             ],
             "overall_score": "F"

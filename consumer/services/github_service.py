@@ -4,6 +4,7 @@ import time
 from config.env import env
 from utils.logger import setup_logger
 from typing import List, Dict, Any, Optional
+from services.comment_formatter import format_review_comment
 import base64
 
 logger = setup_logger(__name__)
@@ -160,75 +161,21 @@ class GitHubService:
 
     def post_review_comments(self, repo: str, pr_number: int, review_data: dict) -> bool:
         """
-        Post structured, beautifully formatted review comments to GitHub PR — like CodeAntAI
-        Uses Pull Request Reviews API with inline comments.
-        Falls back to simple comment if API fails.
+        Post a formatted review comment to GitHub PR using simple comment API.
+        Avoids inline comments (which require diff hunk mapping).
         """
-        url = f"{self.base_url}/repos/{repo}/pulls/{pr_number}/reviews"
-        headers = self._get_headers()
-        headers["Content-Type"] = "application/json"
+        # Use our formatter to generate beautiful Markdown
+        comment_body = format_review_comment(review_data)
 
-        # Format findings as GitHub PR review comments
-        comments = []
-        findings = review_data.get("findings", [])
+        # Post as simple comment
+        success = self.post_simple_comment(repo, pr_number, comment_body)
         
-        for finding in findings:
-            # You may need to map 'line' to actual 'position' in diff later
-            # For now, position=1 is a placeholder — GitHub requires position relative to PR diff
-            comments.append({
-                "path": finding.get("file", ""),
-                "position": finding.get("line", 1),  # ⚠️ In production, map to actual diff hunk position
-                "body": (
-                    f"### 🔍 **{finding.get('severity', 'info').upper()}**: {finding.get('type', '').replace('_', ' ').title()}\n"
-                    f"```diff\n{finding.get('code_snippet', '')}\n```\n"
-                    f"**Description**: {finding.get('description', 'No description provided')}\n\n"
-                    f"**Suggestion**: {finding.get('suggestion', 'No suggestion provided')}\n"
-                    f">  *Reported by CodeEagle AI*"
-                )
-            })
+        if success:
+            logger.info("✅ Review comment posted successfully.")
+        else:
+            logger.error("❌ Failed to post review comment.")
 
-        # Main review body with summary, score, and emoji flair
-        data = {
-            "body": (
-                f"## 🦅 **CodeEagle AI Automated Review**\n\n"
-                f"**Summary**: {review_data.get('summary', 'Review completed successfully')}\n"
-                f"**Overall Score**: `{review_data.get('overall_score', 'N/A')}/10`\n"
-                f"**Total Issues Found**: `{len(comments)}`\n\n"
-                f"---\n"
-                f"*Powered by AI. Review suggestions critically.*"
-            ),
-            "event": "COMMENT",  # Doesn't approve/reject — just comments
-            "comments": comments
-        }
-
-        try:
-            response = requests.post(url, headers=headers, json=data)
-            if response.status_code == 200:
-                logger.info("✅ GitHub PR review posted successfully with inline comments.")
-                return True
-            else:
-                logger.warning(f"⚠️ GitHub PR review API returned {response.status_code}: {response.text}")
-                # FALLBACK: Post simple summary comment if review API fails
-                fallback_comment = (
-                    f"## 🦅 CodeEagle AI Review (Fallback)\n\n"
-                    f"*Unable to post inline comments.*\n"
-                    f"**Summary**: {review_data.get('summary', 'Review completed')}\n"
-                    f"**Score**: `{review_data.get('overall_score', 'N/A')}/10`\n"
-                    f"**Issues**: `{len(comments)}`\n\n"
-                    f"Please check logs or try re-running analysis."
-                )
-                return self.post_simple_comment(repo, pr_number, fallback_comment)
-
-        except Exception as e:
-            logger.error(f"GitHub API error posting review: {e}")
-            # Fallback to simple comment
-            fallback_comment = (
-                f"## CodeEagle AI Review (Error)\n\n"
-                f"*Failed to post detailed review due to error: `{str(e)}`*\n"
-                f"**Summary**: {review_data.get('summary', 'Review failed')}\n"
-                f"Please check service logs for details."
-            )
-            return self.post_simple_comment(repo, pr_number, fallback_comment)
+        return success
 
 
     def post_simple_comment(self, repo: str, pr_number: int, comment: str) -> bool:

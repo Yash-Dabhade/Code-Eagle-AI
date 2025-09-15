@@ -1,108 +1,125 @@
+# services/llm_review_service.py
+
 import ollama
 from config.env import env
 import json
 
 def analyze_code(diff: str, issues: list) -> dict:
     """
-    Analyze code changes and return structured, CodeAntAI-style feedback.
-    Supports any programming language — LLM auto-detects and formats code blocks accordingly.
+    Analyze code changes and return structured, professional feedback.
+    Follows CodeAnt AI and CodeRabbit best practices for actionable reviews.
     """
 
-    # 💡 Enhanced Prompt — Multi-Language, CodeAntAI Style
     prompt = f"""
-        You are CodeEagle AI, an elite senior software engineer and code reviewer with 15+ years of experience across security, performance, scalability, and maintainability. You are reviewing a Pull Request for a production codebase. Your feedback must be **actionable, precise, and educational** — like a senior engineer mentoring a teammate.
+You are CodeEagle AI, an expert code reviewer with deep expertise in security, performance, and best practices. 
+Provide actionable, specific feedback that helps developers improve their code.
 
-        ---
+## YOUR MISSION
+Review the provided code changes and identify real, impactful issues. Focus on problems that matter:
+- Security vulnerabilities that could be exploited
+- Bugs that will cause runtime errors or incorrect behavior  
+- Performance issues that impact user experience
+- Code that violates established best practices
 
-        ## 🎯 GOAL
-        Analyze the provided code diff and automated scan findings to produce a **structured, prioritized, human-readable code review** that helps developers fix issues *before* merging.
+## INPUT DATA
 
-        ---
+### CODE CHANGES:
+{diff}
 
-        ## 📥 INPUT CONTEXT
+### AUTOMATED SCAN RESULTS:
+{issues if issues else "No automated issues detected"}
 
-        ### 1. CODE DIFF (Full content of changed files)
-        {diff}
+## ANALYSIS FRAMEWORK
 
-        ### 2. AUTOMATED SCAN FINDINGS
-        {issues}
+1. **SEVERITY LEVELS** (Use these exact terms):
+   - `critical`: Security vulnerabilities, data loss risks, crashes, exploitable flaws
+   - `high`: Major bugs, significant performance issues, memory leaks
+   - `medium`: Code smells, maintainability issues, minor performance problems
+   - `low`: Style issues, naming conventions, minor optimizations
 
-        ---
+2. **ISSUE TYPES** (Use exact terms):
+   - `security`: Vulnerabilities, injection risks, auth issues
+   - `bug`: Logic errors, null pointers, race conditions
+   - `performance`: Slow queries, memory leaks, inefficient algorithms
+   - `best_practice`: Design patterns, SOLID violations, code structure
+   - `style`: Formatting, naming, comments
+   - `documentation`: Missing/incorrect docs
 
-        ## 🧠 THINKING STEPS (Follow this internally)
+3. **QUALITY SCORING**:
+   - A+/A/A-: Production-ready, minimal issues
+   - B+/B/B-: Good quality, minor improvements needed
+   - C+/C/C-: Needs work, several issues to address
+   - D/F: Major problems, not ready for merge
 
-        1. **Prioritize**: Security > Bugs > Performance > Best Practices > Style.
-        2. **Pinpoint**: Reference exact file and line number. If unknown, estimate (e.g., “around line 40”).
-        3. **Explain**: Clearly state the risk or impact (e.g., “This causes memory leak → app crashes under load”).
-        4. **Fix**: Provide a concrete, copy-paste ready fix. Use correct Markdown code fence for the language (e.g., ```js, ```go, ```java — NOT ```python unless it’s Python).
-        5. **Rate Severity**:
-        - `critical` = exploitable security flaw, data loss, crash
-        - `high` = major bug, performance bottleneck
-        - `medium` = code smell, maintainability issue
-        - `low` = style, nitpick
-        6. **Score**: Assign letter grade A+ to F based on overall risk and code quality.
+## OUTPUT REQUIREMENTS
 
-        ---
+Return ONLY valid JSON matching this exact structure:
 
-        ## 🧾 OUTPUT FORMAT (STRICT JSON)
+{{
+  "summary": "Brief 1-2 sentence executive summary. Be specific about the main issues found.",
+  "findings": [
+    {{
+      "type": "security|bug|performance|best_practice|style|documentation",
+      "severity": "critical|high|medium|low",
+      "file": "exact/path/to/file.ext",
+      "line": 42,
+      "description": "Clear, specific explanation of the issue and its impact.",
+      "suggestion": "Actionable fix with specific implementation details.",
+      "vulnerable_code": "The exact problematic code (no markdown backticks)",
+      "fixed_code": "The corrected code (no markdown backticks)"
+    }}
+  ],
+  "overall_score": "A+|A|A-|B+|B|B-|C+|C|C-|D|F"
+}}
 
-        {{
-        "summary": "Start with emoji. 1-2 sentence summary. Example: '🚨 Found 2 critical SQLi risks in auth module — fix before merge.'",
-        "findings": [
-            {{
-            "type": "security|performance|bug|best_practice|style|documentation",
-            "severity": "critical|high|medium|low",
-            "file": "relative/path/to/file.ext",
-            "line": 42,
-            "description": "Clear explanation of issue + impact.",
-            "suggestion": "Actionable fix suggestion.",
-            "vulnerable_code": "The problematic code snippet (without Markdown fence)",
-            "fixed_code": "The corrected code snippet (without Markdown fence)"
-            }}
-        ],
-        "overall_score": "A+|A|A-|B+|B|B-|C+|C|C-|D|F"
-        }}
+## REVIEW GUIDELINES
 
-        > ⚠️ IMPORTANT:
-        > - DO NOT wrap `vulnerable_code` or `fixed_code` in ``` fences — I will add them with correct language later.
-        > - DO NOT include explanations or notes outside the JSON.
-        > - If no issues, return empty `findings` array and score A or A+.
+1. **Be Specific**: Reference exact lines, variables, and functions
+2. **Be Actionable**: Every finding must have a clear fix
+3. **Be Accurate**: Don't invent issues that don't exist
+4. **Be Helpful**: Explain WHY something is a problem
+5. **Be Concise**: Get to the point without unnecessary words
 
-        ---
+## EXAMPLE OUTPUT
 
-        ## 💡 EXAMPLE (Multi-Language)
+{{
+  "summary": "Found 2 security vulnerabilities: SQL injection in auth module and XSS in user profile.",
+  "findings": [
+    {{
+      "type": "security",
+      "severity": "critical",
+      "file": "api/auth/login.py",
+      "line": 45,
+      "description": "SQL injection vulnerability. User input directly concatenated into query allows database manipulation.",
+      "suggestion": "Use parameterized queries with placeholders to prevent injection.",
+      "vulnerable_code": "query = f'SELECT * FROM users WHERE email = \\"email\\"'",
+      "fixed_code": "query = 'SELECT * FROM users WHERE email = %s'\\ncursor.execute(query, (email,))"
+    }},
+    {{
+      "type": "performance",
+      "severity": "medium",
+      "file": "api/data/processor.go",
+      "line": 122,
+      "description": "N+1 query problem in loop causes 100+ database calls for typical request.",
+      "suggestion": "Batch fetch all required data before loop using JOIN or IN clause.",
+      "vulnerable_code": "for _, id := range userIds {{\\n  user := db.GetUser(id)\\n}}",
+      "fixed_code": "users := db.GetUsers(userIds) // Single query\\nfor _, user := range users {{"
+    }}
+  ],
+  "overall_score": "C+"
+}}
 
-        {{
-        "summary": "✅ Good structure, but fix 1 critical JS XSS risk and 1 Go concurrency bug.",
-        "findings": [
-            {{
-            "type": "security",
-            "severity": "critical",
-            "file": "src/frontend/utils.js",
-            "line": 88,
-            "description": "innerHTML used with unsanitized user input → allows XSS attacks.",
-            "suggestion": "Use textContent or DOMPurify to sanitize.",
-            "vulnerable_code": "element.innerHTML = userInput;",
-            "fixed_code": "element.textContent = userInput;"
-            }},
-            {{
-            "type": "bug",
-            "severity": "high",
-            "file": "cmd/server/handler.go",
-            "line": 120,
-            "description": "Map accessed without mutex → race condition under load.",
-            "suggestion": "Wrap map access in sync.RWMutex.",
-            "vulnerable_code": "users[userID] = data",
-            "fixed_code": "mu.Lock()\\nusers[userID] = data\\nmu.Unlock()"
-            }}
-        ],
-        "overall_score": "B"
-        }}
+## IMPORTANT RULES
 
-        ---
+- Output ONLY valid JSON, no explanations or comments outside JSON
+- Use exact field names as specified
+- Don't include markdown backticks in code fields
+- Focus on real issues, not hypothetical problems
+- If no issues found, return empty findings array with score A or A+
+- Review ALL provided code thoroughly
 
-        ## ✍️ YOUR RESPONSE (STRICT JSON ONLY — no extra text, no apologies, no explanations)
-        """
+Now analyze the code and provide your review:
+"""
 
     try:
         response = ollama.generate(
@@ -110,52 +127,107 @@ def analyze_code(diff: str, issues: list) -> dict:
             prompt=prompt,
             format="json",
             options={
-                "temperature": 0.3,
+                "temperature": 0.2,  # Lower temperature for more consistent output
                 "top_p": 0.9,
-                "num_ctx": 8192
+                "num_ctx": 16384,    # Increased context for larger diffs
+                "num_predict": 4096  # Allow longer responses
             }
         )
 
         try:
             result = json.loads(response["response"])
-            # Ensure minimal structure
-            result.setdefault("summary", "Code review completed.")
-            result.setdefault("findings", [])
-            result.setdefault("overall_score", "B")
+            
+            # Validate and clean the response
+            result = validate_and_clean_review(result)
             return result
 
-        except (json.JSONDecodeError, ValueError, KeyError):
-            return {
-                "summary": "⚠️ Code review completed — model response format invalid",
-                "findings": [
-                    {
-                        "type": "system",
-                        "severity": "medium",
-                        "file": "unknown",
-                        "line": 0,
-                        "description": "Model failed to format response correctly.",
-                        "suggestion": "Check prompt or model configuration.",
-                        "vulnerable_code": "# format error",
-                        "fixed_code": "# format error"
-                    }
-                ],
-                "overall_score": "C"
-            }
+        except (json.JSONDecodeError, ValueError) as e:
+            return fallback_review(f"JSON parsing error: {str(e)}")
 
     except Exception as e:
-        return {
-            "summary": "❌ System error during code analysis",
-            "findings": [
-                {
-                    "type": "system",
-                    "severity": "high",
-                    "file": "system",
-                    "line": 0,
-                    "description": f"Failed to analyze code: {str(e)}",
-                    "suggestion": "Check Ollama service, model availability, or system logs.",
-                    "vulnerable_code": "# system error",
-                    "fixed_code": "# system error"
-                }
-            ],
-            "overall_score": "F"
+        return fallback_review(f"Analysis error: {str(e)}")
+
+
+def validate_and_clean_review(review: dict) -> dict:
+    """
+    Validate and clean the LLM-generated review to ensure it conforms to the expected schema.
+    Ensures all required fields are present, types are correct, and values are valid.
+
+    Args:
+        review (dict): Raw review output from the LLM (parsed from JSON)
+
+    Returns:
+        dict: Cleaned and validated review with guaranteed structure
+    """
+    # Ensure top-level fields exist
+    review.setdefault("summary", "Code review completed.")
+    review.setdefault("findings", [])
+    review.setdefault("overall_score", "B")
+
+    # Validate and clean findings
+    cleaned_findings = []
+    valid_severities = ["critical", "high", "medium", "low"]
+    valid_types = [
+        "security", 
+        "bug", 
+        "performance", 
+        "best_practice", 
+        "style", 
+        "documentation"
+    ]
+
+    for finding in review.get("findings", []):
+        if not isinstance(finding, dict):
+            continue  # Skip non-dict findings
+
+        cleaned_finding = {
+            "type": finding.get("type", "best_practice"),
+            "severity": finding.get("severity", "medium"),
+            "file": str(finding.get("file", "unknown")),
+            "line": int(finding.get("line", 0)) if str(finding.get("line", "")).isdigit() else 0,
+            "description": str(finding.get("description", "Issue detected")).strip(),
+            "suggestion": str(finding.get("suggestion", "Review this code section")).strip(),
+            "vulnerable_code": str(finding.get("vulnerable_code", "")).strip(),
+            "fixed_code": str(finding.get("fixed_code", "")).strip()
         }
+
+        # Normalize and validate severity
+        if cleaned_finding["severity"].lower() not in valid_severities:
+            cleaned_finding["severity"] = "medium"
+        else:
+            cleaned_finding["severity"] = cleaned_finding["severity"].lower()
+
+        # Normalize and validate type
+        if cleaned_finding["type"].lower() not in valid_types:
+            cleaned_finding["type"] = "best_practice"
+        else:
+            cleaned_finding["type"] = cleaned_finding["type"].lower()
+
+        cleaned_findings.append(cleaned_finding)
+
+    review["findings"] = cleaned_findings
+
+    # Validate overall score
+    valid_scores = ["A+", "A", "A-", "B+", "B", "B-", "C+", "C", "C-", "D", "F"]
+    if review["overall_score"] not in valid_scores:
+        review["overall_score"] = "B"
+
+    return review
+
+def fallback_review(error_message: str) -> dict:
+    """
+    Generate a safe fallback review when code analysis fails.
+    Ensures the output still conforms to the expected JSON structure,
+    preventing breaking changes due to errors in LLM processing.
+
+    Args:
+        error_message (str): Description of the error encountered
+
+    Returns:
+        dict: Fallback review with error summary and minimal valid structure
+    """
+    return {
+        "summary": f"Automated review could not be completed due to an internal error: {error_message}",
+        "findings": [],
+        "overall_score": "F"
+    }

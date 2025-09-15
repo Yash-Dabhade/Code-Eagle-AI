@@ -7,9 +7,9 @@ from .helpers import verify_signature
 import json
 from utils.logger import setup_logger
 
-
-router = APIRouter()
 logger = setup_logger(__name__)
+router = APIRouter()
+
 
 @router.post("/webhook")
 async def github_webhook(request: Request):

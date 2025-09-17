@@ -1,7 +1,6 @@
-from services.llm_review_service import analyze_code
+from services.llm.llm_review_service import analyze_code
 from models.pr_job import PRJobData
-from services.github_service import github_service
-from services.comment_formatter import format_review_comment
+from services.github.github_service import github_service
 from utils.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -23,30 +22,20 @@ def process_job(job_data: dict):
 
         logger.info(f"Fetched {len(pr_files)} changed files\n")
 
-        # Build pseudo-diff for LLM (full content of each file)
-        diff = ""
-        for file in pr_files:
-            file_path = file.get("filename", "unknown")
-            diff += f"File: {file_path}\n\n"
-            
-            try:
-                file_content = github_service.get_file_content(job.repo, file_path, job.head_sha)
-                diff += file_content + "\n\n"
-                logger.info(f"Fetched content for {file_path} ({len(file_content)} chars)\n")
-            except Exception as e:
-                logger.error(f"Failed to fetch content for {file_path}: {e}")
-                diff += "[ERROR: Failed to load file content]\n\n"
+        issues = []
 
-       
-        # TEMP: Simulate automated scan findings (empty for now — you can populate later)
-        issues = []  # ← You can populate this from linters, scanners, etc.
-
-        # Analyze with LLM — pass diff + issues
-        review = analyze_code(diff, issues)
+        # Generate analysis
+        logger.info("Starting LLM analysis...")
+        logger.info(f"Files to analyze: {[f['filename'] for f in pr_files]}")
+        review = analyze_code(job, pr_files, issues)
         logger.info(f"LLM analysis completed: {len(review.get('findings', []))} findings")
-
+        logger.info(f"Review Summary: {review.get('summary', '')}\n")
+        if not review or "findings" not in review:
+            logger.error("Invalid review format received from LLM.")
+            return
+        
+        # Format and post to github
         review_success = github_service.post_detailed_review(job.repo, job.pr_number, review)
-
         if review_success:
             logger.info("Review comment posted successfully as top-level comment.")
         else:

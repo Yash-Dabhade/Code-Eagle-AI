@@ -162,7 +162,7 @@ class GitHubService:
         """
         Post detailed technical review as a separate comment.
         """
-        from services.comment_formatter import format_review_comment
+        from services.formatters.comment_formatter import format_review_comment
         comment_body = format_review_comment(review)
         return self.post_simple_comment(repo, pr_number, comment_body)
 

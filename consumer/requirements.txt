@@ -7,3 +7,19 @@ requests
 ollama
 PyJWT
 cryptography
+
+# Tree-Sitter Core + Language Parsers 
+tree-sitter
+tree-sitter-python
+tree-sitter-javascript
+tree-sitter-typescript
+tree-sitter-html
+tree-sitter-php
+tree-sitter-go
+tree-sitter-java
+tree-sitter-rust
+tree-sitter-c
+tree-sitter-cpp
+tree-sitter-c-sharp
+
+

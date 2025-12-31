@@ -4,7 +4,7 @@ An automated code review bot that integrates with GitHub to provide AI-powered f
 
 ## Architecture
 
-[GitHub] → Webhook → Publisher Service → RabbitMQ → Consumer Service → Qwen LLM → GitHub Comment
+<a href="https://ibb.co/q3cZtQJ1"><img src="https://i.ibb.co/Tx7CV3Wh/Whats-App-Image-2025-12-31-at-16-57-06.jpg" alt="Whats-App-Image-2025-12-31-at-16-57-06" border="0" witdh="100%" height="100%"></a>
 
 ## Project Structure
 
